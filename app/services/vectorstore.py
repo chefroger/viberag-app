@@ -64,7 +64,7 @@ _vector_store = VectorStore()
 
 def init_vector_table():
     """初始化向量表"""
-    print("向量存储初始化完成（使用纯 Python 实现）")
+    print("[INFO] 向量存储初始化完成（使用纯 Python 内存实现）")
 
 
 def _serialize_embedding(embedding: List[float]) -> str:

@@ -127,7 +127,7 @@ async def end_session(session_id: str, db: Session = Depends(get_db)):
     # 如果轮次 >= 3，生成摘要
     summary_text = None
     if turn_count >= 3:
-        summary_text = _generate_summary(turns)
+        summary_text = await _generate_summary(turns)
 
     # 写入会话摘要
     if summary_text:
@@ -248,12 +248,9 @@ async def get_session_summary(session_id: str, db: Session = Depends(get_db)):
     }
 
 
-def _generate_summary(turns: List[ConversationTurn]) -> str:
+async def _generate_summary(turns: List[ConversationTurn]) -> str:
     """
-    根据对话轮次生成摘要
-
-    简化版本：提取关键信息
-    完整版本（v0.2+）应该调用 LLM 生成
+    根据对话轮次生成摘要（LLM 版本）
 
     规范 §4 / §9 v0.2:
     - 每轮对话结束后，LLM 自动生成/更新摘要
@@ -263,15 +260,44 @@ def _generate_summary(turns: List[ConversationTurn]) -> str:
     if not turns:
         return ""
 
-    # 统计用户消息数量
+    # 构建对话内容摘要
+    conversation_text = ""
+    for i, turn in enumerate(turns[-10:], max(1, len(turns) - 9)):  # 最近10轮
+        role = "用户" if turn.role == "user" else "助手"
+        content = turn.content[:300] + "..." if len(turn.content) > 300 else turn.content
+        conversation_text += f"[{role}]\n{content}\n\n"
+
+    prompt = f"""请根据以下对话内容生成一段简洁的会话摘要。
+
+对话内容：
+{conversation_text}
+
+请生成一段 100-200 字的摘要，包含：
+1. 用户的主要需求或问题
+2. 助手的核心回应
+3. 任何待确认的事项
+
+只返回摘要内容，不要其他说明。"""
+
+    try:
+        from app.services.rag import call_llm
+        summary = await call_llm(prompt)
+        return summary.strip() if summary else ""
+    except Exception as e:
+        print(f"LLM 摘要生成失败: {e}")
+        # 降级到模板摘要
+        return _template_summary(turns)
+
+
+def _template_summary(turns: List[ConversationTurn]) -> str:
+    """模板摘要（当 LLM 失败时降级使用）"""
     user_turns = [t for t in turns if t.role == "user"]
     assistant_turns = [t for t in turns if t.role == "assistant"]
 
-    # 提取提及的产品（简化：取第一条用户消息作为需求描述）
+    summary = f"会话共 {len(turns)} 轮（用户 {len(user_turns)} 轮，助手 {len(assistant_turns)} 轮）。"
+
     first_user_content = user_turns[0].content if user_turns else ""
     last_user_content = user_turns[-1].content if user_turns else ""
-
-    summary = f"会话共 {len(turns)} 轮（用户 {len(user_turns)} 轮，助手 {len(assistant_turns)} 轮）。"
 
     if first_user_content:
         summary += f"\n用户首句需求：{first_user_content[:100]}"
@@ -279,7 +305,6 @@ def _generate_summary(turns: List[ConversationTurn]) -> str:
     if last_user_content and last_user_content != first_user_content:
         summary += f"\n用户最后一句话：{last_user_content[:100]}"
 
-    # 收集待确认事项
     pending_items = [t.pending_from_this_turn for t in turns if t.pending_from_this_turn]
     if pending_items:
         summary += f"\n待确认事项：{', '.join(set(pending_items))}"

@@ -50,18 +50,18 @@ def get_db_context() -> Generator[Session, None, None]:
 
 
 def init_sqlite_vec():
-    """初始化 sqlite-vec 扩展（可选，失败时静默忽略）"""
+    """初始化 sqlite-vec 扩展（可选，失败时降级到纯 Python 实现）"""
     try:
         conn = sqlite3.connect(str(settings.DATABASE_PATH))
         try:
             conn.execute("SELECT load_extension('vec0')")
             print("sqlite-vec 扩展加载成功")
-        except Exception:
-            pass  # 静默忽略，程序使用纯 Python 实现
+        except Exception as e:
+            print(f"[WARNING] sqlite-vec 扩展加载失败，将使用纯 Python 向量存储代替: {e}")
         finally:
             conn.close()
-    except Exception:
-        pass  # 静默忽略
+    except Exception as e:
+        print(f"[WARNING] sqlite-vec 扩展初始化失败，将使用纯 Python 向量存储代替: {e}")
 
 
 def init_db():

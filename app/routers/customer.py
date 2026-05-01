@@ -105,7 +105,7 @@ async def create_prospect(request: ProspectCreate, db: Session = Depends(get_db)
 
 @router.patch("/prospect/{prospect_id}")
 async def update_prospect(
-    prospect_id: int,
+    prospect_id: str,
     update: ProspectUpdate,
     db: Session = Depends(get_db)
 ):
@@ -120,7 +120,7 @@ async def update_prospect(
 
 @router.post("/prospect/{prospect_id}/upgrade")
 async def upgrade_prospect_stage(
-    prospect_id: int,
+    prospect_id: str,
     request: StageUpgradeRequest,
     customer_data: Optional[CustomerCreate] = None,
     db: Session = Depends(get_db)

@@ -185,7 +185,7 @@ class CustomerService:
         return prospect
 
     @staticmethod
-    def update_prospect(db: Session, prospect_id: int, update_data: dict) -> Optional[Prospect]:
+    def update_prospect(db: Session, prospect_id: str, update_data: dict) -> Optional[Prospect]:
         """更新潜在客户"""
         prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
         if not prospect:
@@ -201,7 +201,7 @@ class CustomerService:
     @staticmethod
     def upgrade_prospect_stage(
         db: Session,
-        prospect_id: int,
+        prospect_id: str,
         action: str,
         customer_data: Optional[dict] = None
     ) -> Tuple[bool, dict]:

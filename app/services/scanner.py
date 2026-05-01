@@ -486,13 +486,12 @@ async def run_scan_task(library_id: int, root_path: str, db: Session = None):
                 for chunk_data in chunks:
                     if 'embedding' in chunk_data and chunk_data['embedding']:
                         vec_id = await add_chunk_vectors(chunk_data['chunk_id'], chunk_data['embedding'])
-                        if vec_id:
-                            from app.models import ChunkVector
-                            cv = ChunkVector(
-                                chunk_id=chunk_data['chunk_id'],
-                                embedding_id=vec_id
-                            )
-                            db.add(cv)
+                        from app.models import ChunkVector
+                        cv = ChunkVector(
+                            chunk_id=chunk_data['chunk_id'],
+                            embedding_id=vec_id  # sqlite-vec 模式返回 internal ID，否则为 None
+                        )
+                        db.add(cv)
 
                 db.commit()
 

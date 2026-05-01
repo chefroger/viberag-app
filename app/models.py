@@ -1,6 +1,7 @@
 """
 VibeRAG SQLAlchemy 模型
 """
+import uuid
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, Float, Boolean, ForeignKey, DateTime, Enum
 from sqlalchemy.orm import relationship
@@ -113,7 +114,7 @@ class Prospect(Base):
     """潜在客户"""
     __tablename__ = "prospect"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
     source = Column(String, nullable=True)
     stage = Column(String, default="inquiry")  # inquiry, newdev, intention
