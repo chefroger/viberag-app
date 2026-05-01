@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeRAG - 智能商业文档分析与销售助手</title>
+    <link rel="stylesheet" href="/static/css/pico.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        // 配置 marked 正确渲染表格
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+        });
+    </script>
+    <style>
+        /* LibreUIUX Modern Design System */
+        :root {
+            /* Brand Colors */
+            --primary: #3B82F6;
+            --primary-dark: #2563EB;
+            --primary-light: #60A5FA;
+            --accent: #8B5CF6;
+
+            /* Surfaces */
+            --bg-primary: #FFFFFF;
+            --bg-secondary: #F8FAFC;
+            --bg-tertiary: #F1F5F9;
+            --bg-glass: rgba(255, 255, 255, 0.8);
+
+            /* Text */
+            --text-primary: #0F172A;
+            --text-secondary: #475569;
+            --text-muted: #94A3B8;
+
+            /* Semantic */
+            --success: #10B981;
+            --warning: #F59E0B;
+            --error: #EF4444;
+            --info: #0EA5E9;
+
+            /* Shadows */
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            --shadow-primary: 0 4px 14px 0 rgba(59, 130, 246, 0.39);
+
+            /* Animations */
+            --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+            --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+            --bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --duration-fast: 150ms;
+            --duration-normal: 200ms;
+            --duration-slow: 300ms;
+
+            /* Font sizes - 缩小基础字号 */
+            --font-size-xs: 0.6875rem;
+            --font-size-sm: 0.75rem;
+            --font-size-base: 0.8125rem;
+            --font-size-md: 0.875rem;
+            --font-size-lg: 1rem;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-secondary);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-size: var(--font-size-sm);
+            color: var(--text-primary);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .app-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        /* 侧边栏 - Glass Card */
+        .sidebar {
+            width: 280px;
+            background: var(--bg-secondary);
+            border-right: 1px solid rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            height: 100%;
+        }
+
+        .sidebar-header {
+            padding: 1rem;
+        }
+
+        .sidebar-header h1 {
+            font-size: var(--font-size-md);
+            font-weight: 700;
+            margin: 0;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.75rem;
+        }
+
+        .sidebar-section {
+            margin-bottom: 1.25rem;
+        }
+
+        .sidebar-section-title {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0.5rem 0.75rem;
+            margin: 0;
+            font-weight: 600;
+        }
+
+        /* Interactive Card Style */
+        .conversation-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: all var(--duration-normal) var(--ease-out);
+            gap: 0.75rem;
+            background: transparent;
+            position: relative;
+        }
+
+        .conversation-item:hover {
+            background: rgba(59, 130, 246, 0.08);
+            transform: translateX(4px);
+        }
+
+        .conversation-item.active {
+            background: transparent;
+        }
+
+        
+        .conversation-item .icon {
+            font-size: 1.25rem;
+            transition: transform var(--duration-normal) var(--ease-out);
+        }
+
+        .conversation-item:hover .icon {
+            transform: scale(1.1);
+        }
+
+        .conversation-item .info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .conversation-item .name {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-primary);
+        }
+
+        .conversation-item .meta {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+
+        .sidebar-footer {
+            padding: 0.75rem 1rem;
+        }
+
+        /* Modern Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.375rem;
+            height: 40px;
+            padding: 0 0.875rem;
+            border-radius: 0.5rem;
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--duration-normal) var(--ease-out);
+            border: none;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: var(--shadow-primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        .btn-primary:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+        }
+
+        /* 发送按钮 */
+        .btn-send {
+            height: 40px;
+            padding: 0 1rem;
+            flex-shrink: 0;
+            box-shadow: none;
+            margin: 0;
+            margin-top: -18px;
+        }
+
+        .btn-secondary {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-secondary:active {
+            transform: scale(0.98);
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        .btn-sm {
+            padding: 0.375rem 0.625rem;
+            font-size: var(--font-size-xs);
+        }
+
+        /* 主内容区 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        /* 顶部栏 */
+        .top-bar {
+            background: var(--bg-secondary);
+            padding: 0.75rem 1.25rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .top-bar-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .top-bar-title h2 {
+            font-size: var(--font-size-sm);
+            margin: 0;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .top-bar-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        /* Modern Badge */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.625rem;
+            border-radius: 9999px;
+            font-size: var(--font-size-xs);
+            font-weight: 500;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        /* 模式切换 */
+        .mode-switcher {
+            display: flex;
+            gap: 0.25rem;
+            padding: 0.5rem 1.5rem;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            flex-shrink: 0;
+        }
+
+        /* 聊天区域 */
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            background: var(--bg-secondary);
+            min-height: 0;
+            margin-bottom: 90px;
+        }
+
+        /* 聊天页面容器 */
+        #chat-page {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        .message {
+            display: flex;
+            gap: 0.75rem;
+            max-width: 100%;
+            animation: messageIn var(--duration-slow) var(--ease-out);
+        }
+
+        @keyframes messageIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message.user .message-content {
+            text-align: right;
+        }
+
+        .message-avatar {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            flex-shrink: 0;
+            font-size: var(--font-size-xs);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .message.user .message-avatar {
+            background: var(--primary);
+            color: white;
+        }
+
+        .message.assistant .message-avatar {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        /* Message Content */
+        .message-content {
+            background: transparent;
+            padding: 0.5rem 0;
+            border-radius: 0;
+            box-shadow: none;
+            font-size: var(--font-size-xs);
+            line-height: 1.6;
+            border: none;
+            color: var(--text-primary);
+        }
+
+        .message-content p,
+        .message-content li,
+        .message-content div {
+            color: var(--text-primary);
+        }
+
+        .message.user .message-content p,
+        .message.user .message-content li,
+        .message.user .message-content div {
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        .message-content p {
+            margin: 0 0 0.625rem 0;
+        }
+
+        .message-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .message-sources {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid rgba(0, 0, 0, 0.06);
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+
+        .message-sources-title {
+            font-weight: 600;
+            margin-bottom: 0.375rem;
+            color: var(--text-secondary);
+        }
+
+        .source-item {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            margin-top: 0.25rem;
+            color: var(--text-muted);
+        }
+
+        /* Think Content */
+        .think-content {
+            background: linear-gradient(135deg, #FEF3C7, #FDE68A);
+            border: 1px solid #FCD34D;
+            border-radius: 0.625rem;
+            padding: 0.625rem 0.875rem;
+            margin-bottom: 0.625rem;
+            font-size: var(--font-size-xs);
+            color: #92400E;
+            line-height: 1.5;
+        }
+
+        .think-content.hidden {
+            display: none;
+        }
+
+        /* Markdown 样式 */
+        .message-content h1,
+        .message-content h2,
+        .message-content h3,
+        .message-content h4 {
+            margin-top: 0.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .message-content h1 { font-size: 1.25rem; }
+        .message-content h2 { font-size: 1.125rem; }
+        .message-content h3 { font-size: 1rem; }
+        .message-content h4 { font-size: 0.875rem; }
+
+        .message-content p {
+            margin: 0.375rem 0;
+        }
+
+        .message-content table,
+        .message-content table *,
+        .message-content pre table,
+        .message-content pre table * {
+            background: white !important;
+            color: var(--text-primary) !important;
+            border-color: #e2e8f0 !important;
+        }
+
+        .message-content table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin: 0.75rem 0 !important;
+            font-size: var(--font-size-xs) !important;
+            border-radius: 0.5rem !important;
+            overflow: hidden !important;
+            box-shadow: none !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+
+        .message-content th,
+        .message-content td {
+            padding: 0.5rem 0.75rem !important;
+            text-align: left !important;
+            border-bottom: 1px solid #e2e8f0 !important;
+            font-weight: normal !important;
+        }
+
+        .message-content th {
+            background: var(--bg-tertiary) !important;
+            font-weight: 600 !important;
+        }
+
+        .message-content tr:last-child td {
+            border-bottom: none !important;
+        }
+
+        .message-content tr:hover td {
+            background: #f8fafc !important;
+        }
+
+        .message-content thead {
+            background: var(--bg-tertiary) !important;
+        }
+
+        .message-content tbody {
+            background: white !important;
+        }
+
+        .message-content ul,
+        .message-content ol {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .message-content li {
+            margin: 0.25rem 0;
+        }
+
+        .message-content code {
+            background: #f1f5f9;
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8125em;
+            color: var(--text-primary);
+        }
+
+        .message-content pre {
+            background: #f1f5f9;
+            color: var(--text-primary);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 0.5rem 0;
+            border: 1px solid #e2e8f0;
+        }
+
+        .message-content pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        .message-content strong {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .message-content em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+
+        .message-content hr {
+            border: none;
+            border-top: 1px solid #e2e8f0;
+            margin: 1rem 0;
+        }
+
+        /* 输入区域 - 固定在底部，与设置按钮中线对齐 */
+        .input-area {
+            position: fixed;
+            bottom: 0;
+            left: 280px;
+            right: 0;
+            background: transparent;
+            padding: 0 1.5rem;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            height: 56px;
+            box-sizing: border-box;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            width: 100%;
+            padding: 0;
+            margin: 0;
+        }
+
+        .input-group {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+            height: 40px;
+            padding: 0;
+            margin: 0;
+        }
+
+        /* Modern Input */
+        textarea {
+            width: 100%;
+            padding: 0 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 0.5rem;
+            font-size: var(--font-size-xs);
+            resize: none;
+            font-family: inherit;
+            height: 40px;
+            line-height: 40px;
+            box-sizing: border-box;
+            overflow: hidden;
+            color: var(--text-primary);
+        }
+
+        textarea:focus {
+            outline: none;
+            background: var(--bg-primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        /* 欢迎页 */
+        .welcome-page {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            background: var(--bg-secondary);
+        }
+
+        .welcome-logo {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .welcome-title {
+            font-size: var(--font-size-md);
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--text-primary), var(--primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .welcome-subtitle {
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            max-width: 400px;
+            font-size: var(--font-size-xs);
+            line-height: 1.5;
+        }
+
+        .mode-btn {
+            padding: 0.375rem 0.75rem;
+            border: none;
+            background: transparent;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: var(--font-size-xs);
+            font-weight: 500;
+            color: var(--text-muted);
+            transition: all var(--duration-normal) var(--ease-out);
+        }
+
+        .mode-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .mode-btn.active {
+            background: var(--bg-primary);
+            color: var(--primary);
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 0.625rem;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 1.25rem;
+            height: 1.25rem;
+            border: 2px solid var(--bg-tertiary);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            padding: 0.875rem 1.25rem;
+            background: var(--text-primary);
+            color: white;
+            border-radius: 0.875rem;
+            font-size: var(--font-size-sm);
+            box-shadow: var(--shadow-xl);
+            z-index: 1000;
+            animation: slideIn var(--duration-slow) var(--ease-out);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(1rem);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Modern Modal */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            animation: fadeIn var(--duration-normal) var(--ease-out);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal {
+            background: var(--bg-primary);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            max-width: 480px;
+            width: 90%;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-xl);
+            animation: modalIn var(--duration-slow) var(--ease-out);
+        }
+
+        @keyframes modalIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95) translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .modal-title {
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.375rem;
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.625rem 0.875rem;
+            background: var(--bg-secondary);
+            border: 2px solid rgba(0, 0, 0, 0.08);
+            border-radius: 0.625rem;
+            font-size: var(--font-size-sm);
+            transition: all var(--duration-normal) var(--ease-out);
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            background: var(--bg-primary);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+
+        .form-group .hint {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            margin-top: 0.375rem;
+        }
+
+        /* Library Item */
+        .library-item {
+            display: flex;
+            align-items: center;
+            padding: 0.625rem 0.75rem;
+            border-radius: 0.625rem;
+            cursor: pointer;
+            transition: all var(--duration-normal) var(--ease-out);
+            gap: 0.5rem;
+        }
+
+        .library-item:hover {
+            background: rgba(59, 130, 246, 0.08);
+        }
+
+        .library-item.active {
+            background: rgba(59, 130, 246, 0.12);
+        }
+
+        .library-icon {
+            margin-right: 0.375rem;
+            font-size: 1.125rem;
+        }
+
+        .library-status {
+            margin-left: auto;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>
+                    <span>💬</span>
+                    <span>VibeRAG</span>
+                </h1>
+            </div>
+
+            <div class="sidebar-content">
+                <!-- 默认对话 -->
+                <div class="sidebar-section">
+                    <div class="conversation-item active" id="btn-default-chat" onclick="switchToDefaultChat()">
+                        <span class="icon">💬</span>
+                        <div class="info">
+                            <div class="name">聊一聊</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 文档库列表 -->
+                <div class="sidebar-section">
+                    <p class="sidebar-section-title">📁 文档库</p>
+                    <div id="library-list">
+                        <div class="library-item" onclick="showAddLibraryModal()">
+                            <span class="library-icon">➕</span>
+                            <span>新建文档库</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 正式客户 -->
+                <div class="sidebar-section" id="customer-section">
+                    <p class="sidebar-section-title">👤 正式客户</p>
+                    <div id="customer-list"></div>
+                </div>
+
+                <!-- 未建档 -->
+                <div class="sidebar-section" id="prospect-section">
+                    <p class="sidebar-section-title">📋 待跟进</p>
+                    <div id="prospect-list"></div>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary btn-sm" onclick="showAddCustomerModal()" style="margin-bottom: 0.5rem;">
+                    ➕ 新客户
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="location.href='/settings'">
+                    ⚙️ 设置
+                </button>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 欢迎页（默认显示） -->
+            <div class="welcome-page" id="welcome-page">
+                <div class="welcome-logo">📄</div>
+                <h1 class="welcome-title">VibeRAG 智能销售助手</h1>
+                <p class="welcome-subtitle">
+                    扫描客户文档目录，自动理解产品/报价/成交记录，AI 辅助生成开发信和销售话术
+                </p>
+                <div id="welcome-buttons" style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center;">
+                    <button class="btn btn-primary" id="btn-new-library" onclick="showAddLibraryModal()">
+                        ➕ 新建文档库
+                    </button>
+                    <button class="btn btn-secondary" id="btn-start-chat" onclick="switchToDefaultChat()">
+                        💬 开始对话
+                    </button>
+                </div>
+            </div>
+
+            <!-- 聊天界面（默认隐藏） -->
+            <div id="chat-page" class="hidden">
+                <div class="top-bar">
+                    <div class="top-bar-title">
+                        <span id="chat-title-icon">💬</span>
+                        <h2 id="chat-title">聊一聊</h2>
+                        <span class="badge badge-gray" id="chat-badge">无关联文档库</span>
+                    </div>
+                    <div class="top-bar-actions">
+                        <button class="btn btn-secondary btn-sm hidden" id="btn-scan-library" onclick="scanCurrentLibrary()">
+                            🔄 扫描
+                        </button>
+                        <button class="btn btn-secondary btn-sm hidden" id="btn-rescan-library" onclick="rescanCurrentLibrary()" title="强制重新扫描">
+                            🔁 重扫
+                        </button>
+                        <button class="btn btn-secondary btn-sm" id="btn-toggle-think" onclick="toggleThink()" title="显示/隐藏 AI 思考过程">
+                            💭 思考
+                        </button>
+                        <button class="btn btn-secondary btn-sm" id="btn-clear-chat" onclick="clearChat()">
+                            🗑️ 清空
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 模式切换 - 固定在顶部 -->
+                <div class="mode-switcher">
+                    <button class="mode-btn active" data-mode="qa" onclick="setMode('qa')">问答</button>
+                    <button class="mode-btn" data-mode="letter" onclick="setMode('letter')">写信</button>
+                    <button class="mode-btn" data-mode="script" onclick="setMode('script')">话术</button>
+                    <button class="mode-btn" data-mode="quote" onclick="setMode('quote')">报价</button>
+                </div>
+
+                <div class="chat-area" id="chat-messages">
+                    <!-- 消息将在这里动态插入 -->
+                </div>
+
+                <div class="input-area">
+                    <div class="input-wrapper">
+                        <div class="input-group">
+                            <textarea
+                                id="message-input"
+                                placeholder="输入您的问题..."
+                                rows="1"
+                                onkeydown="handleKeyDown(event)"
+                            ></textarea>
+                        </div>
+                        <button class="btn btn-primary btn-send" id="btn-send" onclick="sendMessage()">
+                            发送
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 新建文档库弹窗 -->
+    <div class="modal-backdrop hidden" id="add-library-modal">
+        <div class="modal">
+            <h3 class="modal-title">新建文档库</h3>
+            <div class="form-group">
+                <label>库名称</label>
+                <input type="text" id="library-name" placeholder="例如：阀门产品库">
+            </div>
+            <div class="form-group">
+                <label>文档目录路径</label>
+                <input type="text" id="library-path" placeholder="输入完整路径，如 /Users/xxx/Documents/客户资料" style="width: 100%;">
+                <p class="hint">📌 获取路径：Mac 在文件夹上右键→Option 键→"复制 XXX 为路径名"</p>
+            </div>
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <button class="btn btn-secondary" onclick="hideAddLibraryModal()">取消</button>
+                <button class="btn btn-primary" id="btn-create-library" onclick="createLibrary()">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 容器 -->
+    <div id="toast-container"></div>
+
+    <script>
+        // 状态
+        let selectedFolderPath = '';
+        let currentMode = 'qa';
+        let currentCustomerId = null;
+        let currentLibraryId = null;
+        let currentSessionId = null;
+        let showThink = false; // 默认隐藏 AI 思考过程
+
+        // 从 localStorage 加载默认对话历史
+        function loadDefaultChatHistory() {
+            const saved = localStorage.getItem('viberag_default_chat');
+            if (saved) {
+                try {
+                    const messages = JSON.parse(saved);
+                    const container = document.getElementById('chat-messages');
+                    container.innerHTML = '';
+                    messages.forEach(msg => {
+                        // 兼容新旧格式：新格式用 html，旧格式用 content
+                        if (msg.html) {
+                            addMessageToDOMRaw(msg.role, msg.html, msg.sources);
+                        } else if (msg.content) {
+                            // 旧格式需要重新解析 markdown
+                            addMessageToDOM(msg.role, msg.content, msg.sources);
+                        }
+                    });
+                } catch (e) {
+                    console.error('加载聊天历史失败:', e);
+                }
+            }
+        }
+
+        // 保存默认对话历史到 localStorage
+        function saveDefaultChatHistory() {
+            const container = document.getElementById('chat-messages');
+            const messages = [];
+            container.querySelectorAll('.message').forEach(msgEl => {
+                const role = msgEl.classList.contains('user') ? 'user' : 'assistant';
+                const contentEl = msgEl.querySelector('.message-content');
+                let html = contentEl.innerHTML.trim();
+                messages.push({ role, html, sources: null });
+            });
+            localStorage.setItem('viberag_default_chat', JSON.stringify(messages));
+        }
+
+        // 添加消息到 DOM（不保存，用于加载历史）
+        function addMessageToDOM(role, content, sources = null) {
+            const messagesContainer = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = role === 'user' ? '👤' : '🤖';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            // 使用 Markdown 渲染内容
+            if (typeof marked !== 'undefined') {
+                contentDiv.innerHTML = marked.parse(content);
+            } else {
+                // 降级：纯文本显示
+                content.split('\n').forEach(p => {
+                    if (p.trim()) {
+                        const pEl = document.createElement('p');
+                        pEl.textContent = p;
+                        contentDiv.appendChild(pEl);
+                    }
+                });
+            }
+
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(contentDiv);
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // 切换思考内容显示
+        function toggleThink() {
+            showThink = !showThink;
+            const btn = document.getElementById('btn-toggle-think');
+            btn.classList.toggle('btn-primary', showThink);
+            btn.classList.toggle('btn-secondary', !showThink);
+
+            // 切换所有 think 内容的显示
+            document.querySelectorAll('.think-content').forEach(el => {
+                el.classList.toggle('hidden', !showThink);
+            });
+        }
+
+        // 模式切换
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.mode === mode);
+            });
+            const placeholders = {
+                qa: '输入您的问题...',
+                letter: '描述客户需求或公司名称...',
+                script: '选择场景（首次接触/询价/议价/成交）...',
+                quote: '输入产品型号或需求描述...'
+            };
+            document.getElementById('message-input').placeholder = placeholders[mode];
+        }
+
+        // 切换到默认对话
+        function switchToDefaultChat() {
+            currentCustomerId = null;
+            currentLibraryId = null;  // 清除文档库选择
+
+            // 保存页面状态
+            if (currentLibraryId) {
+                sessionStorage.setItem('viberag_page_state', JSON.stringify({
+                    page: 'chat',
+                    libraryId: currentLibraryId,
+                    libraryName: document.getElementById('chat-badge').textContent
+                }));
+            }
+
+            document.getElementById('welcome-page').classList.add('hidden');
+            document.getElementById('chat-page').classList.remove('hidden');
+
+            // 如果已选择文档库，显示文档库名称和扫描按钮
+            if (currentLibraryId) {
+                document.getElementById('btn-scan-library').classList.remove('hidden');
+                document.getElementById('btn-rescan-library').classList.remove('hidden');
+            } else {
+                document.getElementById('chat-title').textContent = '聊一聊';
+                document.getElementById('chat-title-icon').textContent = '💬';
+                document.getElementById('chat-badge').textContent = '无关联文档库';
+            }
+
+            document.getElementById('btn-clear-chat').classList.remove('hidden');
+            document.getElementById('chat-messages').innerHTML = '';
+            // 加载历史记录
+            loadDefaultChatHistory();
+        }
+
+        // 切换到客户对话
+        function switchToCustomerChat(customerId, customerName, libraryId) {
+            currentCustomerId = customerId;
+            currentLibraryId = libraryId;
+            document.getElementById('welcome-page').classList.add('hidden');
+            document.getElementById('chat-page').classList.remove('hidden');
+            document.getElementById('chat-title').textContent = customerName;
+            document.getElementById('chat-title-icon').textContent = '👤';
+            document.getElementById('chat-badge').textContent = '客户对话';
+            document.getElementById('btn-clear-chat').classList.add('hidden');
+            document.getElementById('chat-messages').innerHTML = '';
+        }
+
+        // 清空对话
+        function clearChat() {
+            if (confirm('确定要清空当前对话吗？')) {
+                document.getElementById('chat-messages').innerHTML = '';
+                // 清除 localStorage
+                if (currentLibraryId) {
+                    localStorage.removeItem(`viberag_library_chat_${currentLibraryId}`);
+                } else {
+                    localStorage.removeItem('viberag_default_chat');
+                }
+            }
+        }
+
+        // 处理键盘事件
+        function handleKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        // 自动调整输入框高度
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+        }
+
+        // 显示消息
+        function addMessage(role, content, sources = null) {
+            const messagesContainer = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = role === 'user' ? '👤' : '🤖';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            // 提取 AI 思考内容（从 <think>...</think> 或 (think)...(/think) 中提取）
+            let thinkContent = '';
+            let answerContent = content;
+
+            const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/i);
+            if (thinkMatch) {
+                thinkContent = thinkMatch[1].trim();
+                answerContent = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+            } else {
+                // 尝试匹配 (think)...(/think) 格式
+                const thinkMatch2 = content.match(/\(think\)([\s\S]*?)\(\/think\)/i);
+                if (thinkMatch2) {
+                    thinkContent = thinkMatch2[1].trim();
+                    answerContent = content.replace(/\(think\)[\s\S]*?\(\/think\)/gi, '').trim();
+                }
+            }
+
+            // 如果有思考内容，添加到消息中
+            if (thinkContent && role === 'assistant') {
+                const thinkDiv = document.createElement('div');
+                thinkDiv.className = 'think-content' + (showThink ? '' : ' hidden');
+                thinkDiv.textContent = '💭 ' + thinkContent;
+                contentDiv.appendChild(thinkDiv);
+            }
+
+            // 使用 Markdown 渲染内容
+            if (typeof marked !== 'undefined') {
+                contentDiv.innerHTML = marked.parse(answerContent);
+            } else {
+                // 降级：纯文本显示
+                answerContent.split('\n').forEach(p => {
+                    if (p.trim()) {
+                        const pEl = document.createElement('p');
+                        pEl.textContent = p;
+                        contentDiv.appendChild(pEl);
+                    }
+                });
+            }
+
+            // 添加来源
+            if (sources && sources.length > 0) {
+                const sourcesDiv = document.createElement('div');
+                sourcesDiv.className = 'message-sources';
+                sourcesDiv.innerHTML = `
+                    <div class="message-sources-title">📚 参考来源：</div>
+                    ${sources.map(s => `
+                        <div class="source-item">
+                            <span>📄</span>
+                            <span>${s.file_name} (相似度: ${(s.score * 100).toFixed(1)}%)</span>
+                        </div>
+                    `).join('')}
+                `;
+                contentDiv.appendChild(sourcesDiv);
+            }
+
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(contentDiv);
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            // 保存到 localStorage
+            if (currentCustomerId === null && currentLibraryId) {
+                // 文档库对话
+                saveLibraryChatHistory(currentLibraryId);
+            } else if (currentCustomerId === null) {
+                // 默认对话
+                saveDefaultChatHistory();
+            }
+        }
+
+        // 发送消息
+        async function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            // 显示用户消息
+            addMessage('user', message);
+            input.value = '';
+            input.style.height = 'auto';
+
+            // 显示加载状态
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'message assistant';
+            loadingDiv.innerHTML = `
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <span>思考中...</span>
+                    </div>
+                </div>
+            `;
+            document.getElementById('chat-messages').appendChild(loadingDiv);
+            document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
+
+            try {
+                const response = await fetch('/api/ask/question', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        question: message,
+                        customer_id: currentCustomerId,
+                        library_id: currentLibraryId,
+                        mode: currentMode
+                    })
+                });
+
+                const data = await response.json();
+
+                // 移除加载状态
+                loadingDiv.remove();
+
+                if (response.ok) {
+                    addMessage('assistant', data.answer, data.sources);
+                } else {
+                    addMessage('assistant', `抱歉，发生了错误：${data.detail || data.message || '未知错误'}`);
+                }
+            } catch (error) {
+                loadingDiv.remove();
+                addMessage('assistant', `网络错误：${error.message}`);
+            }
+        }
+
+        // 显示新建文档库弹窗
+        function showAddLibraryModal() {
+            document.getElementById('add-library-modal').classList.remove('hidden');
+        }
+
+        // 处理文件夹选择（使用 File System Access API）
+        async function handleFolderSelect() {
+            // 尝试使用 File System Access API
+            if ('showDirectoryPicker' in window) {
+                try {
+                    const handle = await window.showDirectoryPicker();
+                    // 注意：浏览器只返回句柄，无法获取完整路径
+                    // 用户需要手动在路径框中补全完整路径
+                    const folderName = handle.name;
+                    document.getElementById('library-path').value = folderName;
+                    showToast('已选择文件夹 "' + folderName + '"，请补全上方路径为完整路径（如 /Users/xxx/Documents/' + folderName + '）');
+                    return;
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error('showDirectoryPicker error:', err);
+                    }
+                }
+            }
+
+            // 降级：使用传统 input（仅能获取文件夹名称）
+            const input = document.getElementById('library-folder-picker');
+            if (input.files && input.files.length > 0) {
+                const file = input.files[0];
+                const pathParts = file.webkitRelativePath.split('/');
+                if (pathParts.length > 1) {
+                    document.getElementById('library-path').value = pathParts[0];
+                    showToast('已选择文件夹，请补全上方路径为完整路径');
+                }
+            }
+        }
+
+        // 隐藏新建文档库弹窗
+        function hideAddLibraryModal() {
+            document.getElementById('add-library-modal').classList.add('hidden');
+            document.getElementById('library-name').value = '';
+            document.getElementById('library-path').value = '';
+            selectedFolderPath = '';
+            document.getElementById('library-folder-picker').value = '';
+        }
+
+        // 创建文档库
+        async function createLibrary() {
+            const name = document.getElementById('library-name').value.trim();
+            const path = document.getElementById('library-path').value.trim();
+            const btn = document.getElementById('btn-create-library');
+
+            if (!name) {
+                showToast('请填写库名称');
+                return;
+            }
+
+            if (!path) {
+                showToast('请填写文档目录路径');
+                return;
+            }
+
+            // 简单验证路径格式（不能只是纯字母数字）
+            if (/^[a-zA-Z0-9]+$/.test(path)) {
+                showToast('路径格式不正确，请输入完整的文件夹路径');
+                return;
+            }
+
+            // 显示加载状态
+            btn.disabled = true;
+            btn.textContent = '创建中...';
+
+            try {
+                const response = await fetch('/api/library/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ name, root_path: path })
+                });
+
+                const data = await response.json();
+                console.log('创建文档库响应:', response.ok, data);
+
+                if (response.ok) {
+                    showToast(data.message || '文档库创建成功，正在后台扫描...');
+                    hideAddLibraryModal();
+                    // 延迟一下确保后端已提交
+                    setTimeout(() => {
+                        loadLibraryList();
+                    }, 500);
+                } else {
+                    showToast(data.detail || '创建失败');
+                }
+            } catch (error) {
+                showToast(`错误：${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '创建';
+            }
+        }
+
+        // 加载文档库列表
+        async function loadLibraryList() {
+            try {
+                const response = await fetch('/api/library/list', {
+                    signal: AbortSignal.timeout(10000)  // 10秒超时
+                });
+                const data = await response.json();
+                console.log('加载文档库列表:', data.libraries?.length, '个库');
+
+                const listContainer = document.getElementById('library-list');
+                if (data.libraries && data.libraries.length > 0) {
+                    listContainer.innerHTML = data.libraries.map(lib => {
+                        // 判断扫描状态
+                        const total = lib.file_count || 0;
+                        const processed = lib.processed_count || 0;
+                        const failed = lib.failed_count || 0;
+                        const hasChunks = lib.chunk_count > 0;
+
+                        let statusIcon, statusTitle;
+                        if (hasChunks && failed === 0 && processed >= total) {
+                            statusIcon = '✅';
+                            statusTitle = `已扫描完成 (${processed}/${total})`;
+                        } else if (hasChunks) {
+                            statusIcon = '⚠️';
+                            statusTitle = `部分成功 (成功${processed}, 失败${failed})`;
+                        } else if (processed > 0) {
+                            statusIcon = '🔄';
+                            statusTitle = `扫描中 (${processed}/${total})`;
+                        } else {
+                            statusIcon = '📋';
+                            statusTitle = `待扫描 (${total} 文件)`;
+                        }
+                        return `
+                        <div class="library-item" data-id="${lib.id}" data-name="${lib.name}" onclick="selectLibraryFromElement(this)">
+                            <span class="library-icon">📁</span>
+                            <span>${lib.name}</span>
+                            <span class="library-status" title="${statusTitle}">${statusIcon}</span>
+                        </div>
+                    `}).join('') + `
+                        <div class="library-item" onclick="showAddLibraryModal()">
+                            <span class="library-icon">➕</span>
+                            <span>新建文档库</span>
+                        </div>
+                    `;
+                } else {
+                    listContainer.innerHTML = `
+                        <div class="library-item" onclick="showAddLibraryModal()">
+                            <span class="library-icon">➕</span>
+                            <span>新建文档库</span>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('加载文档库列表失败:', error);
+            }
+        }
+
+        // 选择文档库
+        function selectLibrary(libraryId, libraryName) {
+            currentLibraryId = libraryId;
+            currentCustomerId = null;
+
+            // 保存页面状态
+            sessionStorage.setItem('viberag_page_state', JSON.stringify({
+                page: 'chat',
+                libraryId: libraryId,
+                libraryName: libraryName
+            }));
+
+            // 切换到聊天界面
+            document.getElementById('welcome-page').classList.add('hidden');
+            document.getElementById('chat-page').classList.remove('hidden');
+            document.getElementById('chat-title').textContent = libraryName;
+            document.getElementById('chat-title-icon').textContent = '📁';
+            document.getElementById('chat-badge').textContent = libraryName;
+            document.getElementById('btn-scan-library').classList.remove('hidden');
+            document.getElementById('btn-rescan-library').classList.remove('hidden');
+            document.getElementById('btn-clear-chat').classList.add('hidden');
+
+            // 加载该文档库的聊天历史
+            loadLibraryChatHistory(libraryId);
+
+            showToast(`已选择文档库：${libraryName}`);
+        }
+
+        // 从 DOM 元素选择文档库（用于动态生成的列表）
+        function selectLibraryFromElement(el) {
+            const libraryId = parseInt(el.dataset.id);
+            const libraryName = el.dataset.name;
+            selectLibrary(libraryId, libraryName);
+        }
+
+        // 加载文档库聊天历史
+        function loadLibraryChatHistory(libraryId) {
+            const saved = localStorage.getItem(`viberag_library_chat_${libraryId}`);
+            if (saved) {
+                try {
+                    const messages = JSON.parse(saved);
+                    const container = document.getElementById('chat-messages');
+                    container.innerHTML = '';
+                    messages.forEach(msg => {
+                        // 兼容新旧格式：新格式用 html，旧格式用 content
+                        const content = msg.html || msg.content || '';
+                        if (msg.html) {
+                            addMessageToDOMRaw(msg.role, msg.html, msg.sources);
+                        } else if (msg.content) {
+                            // 旧格式需要重新解析 markdown
+                            addMessageToDOM(msg.role, msg.content, msg.sources);
+                        }
+                    });
+                } catch (e) {
+                    console.error('加载聊天历史失败:', e);
+                }
+            } else {
+                document.getElementById('chat-messages').innerHTML = '';
+            }
+        }
+
+        // 保存文档库聊天历史
+        function saveLibraryChatHistory(libraryId) {
+            if (!libraryId) return;
+            const container = document.getElementById('chat-messages');
+            const messages = [];
+            container.querySelectorAll('.message').forEach(msgEl => {
+                const role = msgEl.classList.contains('user') ? 'user' : 'assistant';
+                const contentEl = msgEl.querySelector('.message-content');
+                let html = contentEl.innerHTML.trim();
+                messages.push({ role, html, sources: null });
+            });
+            localStorage.setItem(`viberag_library_chat_${libraryId}`, JSON.stringify(messages));
+        }
+
+        // 直接添加已渲染的 HTML 到 DOM
+        function addMessageToDOMRaw(role, html, sources = null) {
+            const messagesContainer = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = role === 'user' ? '👤' : '🤖';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.innerHTML = html;
+
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(contentDiv);
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // 扫描当前文档库
+        async function scanCurrentLibrary() {
+            if (!currentLibraryId) {
+                showToast('请先选择一个文档库');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/library/${currentLibraryId}/scan`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                showToast(data.message || '扫描已启动');
+            } catch (error) {
+                showToast(`扫描失败：${error.message}`);
+            }
+        }
+
+        // 强制重新扫描
+        async function rescanCurrentLibrary() {
+            if (!currentLibraryId) {
+                showToast('请先选择一个文档库');
+                return;
+            }
+
+            if (!confirm('强制重扫将删除所有现有索引并重新扫描，确定要继续吗？')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/library/${currentLibraryId}/rescan`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                showToast(data.message || '强制重扫已启动');
+            } catch (error) {
+                showToast(`重扫失败：${error.message}`);
+            }
+        }
+
+        // 显示 Toast 提示
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // 拖拽文件夹相关
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const dropZone = document.getElementById('drop-zone');
+            dropZone.style.borderColor = 'var(--primary)';
+            dropZone.style.background = '#eef2ff';
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const dropZone = document.getElementById('drop-zone');
+            dropZone.style.borderColor = '#e2e8f0';
+            dropZone.style.background = 'transparent';
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const dropZone = document.getElementById('drop-zone');
+            dropZone.style.borderColor = '#e2e8f0';
+            dropZone.style.background = 'transparent';
+
+            // 尝试从 DataTransfer.files 获取完整路径（Electron 环境）
+            const files = e.dataTransfer.files;
+            if (files && files.length > 0) {
+                const file = files[0];
+                // Electron 的 file.path 包含完整路径
+                if (file.path && file.path.length > 0) {
+                    document.getElementById('library-path').value = file.path;
+                    showToast('已获取路径: ' + file.path);
+                    return;
+                }
+            }
+
+            // 降级：使用 webkitGetAsEntry（只能获取文件夹名）
+            const items = e.dataTransfer.items;
+            if (items && items.length > 0) {
+                const item = items[0];
+                if (item.kind === 'file') {
+                    const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+                    if (entry && entry.isDirectory) {
+                        document.getElementById('library-path').value = entry.name;
+                        showToast('已识别文件夹 "' + entry.name + '"，请在前面加上完整路径前缀');
+                    }
+                }
+            }
+        }
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadLibraryList();
+            loadCustomerList();
+            loadProspectList();
+
+            // 恢复之前的页面状态
+            const savedState = sessionStorage.getItem('viberag_page_state');
+            if (savedState) {
+                try {
+                    const state = JSON.parse(savedState);
+                    if (state.page === 'chat' && state.libraryId) {
+                        // 自动选择之前选择的文档库并切换到聊天界面
+                        selectLibrary(state.libraryId, state.libraryName);
+                    }
+                } catch (e) {
+                    console.error('恢复页面状态失败:', e);
+                }
+            }
+
+            // 欢迎页按钮事件绑定
+            document.getElementById('btn-new-library').addEventListener('click', showAddLibraryModal);
+            document.getElementById('btn-start-chat').addEventListener('click', switchToDefaultChat);
+        });
+
+        // 加载客户列表
+        async function loadCustomerList() {
+            try {
+                const response = await fetch('/api/customer/list');
+                const data = await response.json();
+
+                const customerSection = document.getElementById('customer-section');
+                const customerList = document.getElementById('customer-list');
+
+                if (data.customers && data.customers.length > 0) {
+                    customerSection.style.display = 'block';
+                    customerList.innerHTML = data.customers.map(c => `
+                        <div class="conversation-item" onclick="switchToCustomerChat(${c.id}, '${escapeHtml(c.company_name)}')">
+                            <span class="icon">👤</span>
+                            <div class="info">
+                                <div class="name">${escapeHtml(c.company_name)}</div>
+                                <div class="meta">${c.source || ''}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    customerSection.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('加载客户列表失败:', error);
+            }
+        }
+
+        // 加载潜在客户列表（Prospect）
+        async function loadProspectList() {
+            try {
+                const response = await fetch('/api/customer/list?stage=inquiry');
+                const data = await response.json();
+
+                const prospectSection = document.getElementById('prospect-section');
+                const prospectList = document.getElementById('prospect-list');
+
+                if (data.customers && data.customers.length > 0) {
+                    prospectSection.style.display = 'block';
+                    prospectList.innerHTML = data.customers.map(p => `
+                        <div class="conversation-item" style="color: #94A3B8;" onclick="switchToProspectChat(${p.id}, '${escapeHtml(p.company_name)}')">
+                            <span class="icon">📨</span>
+                            <div class="info">
+                                <div class="name">询盘：${escapeHtml(p.company_name)}</div>
+                                <div class="meta">${p.source || ''}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    // 检查是否有新开发阶段的 prospect
+                    fetch('/api/customer/list?stage=newdev').then(res => res.json()).then(data2 => {
+                        if (data2.customers && data2.customers.length > 0) {
+                            prospectSection.style.display = 'block';
+                            const existingHtml = prospectList.innerHTML;
+                            prospectList.innerHTML = existingHtml + data2.customers.map(p => `
+                                <div class="conversation-item" style="color: #94A3B8;" onclick="switchToProspectChat(${p.id}, '${escapeHtml(p.company_name)}')">
+                                    <span class="icon">📋</span>
+                                    <div class="info">
+                                        <div class="name">新开发：${escapeHtml(p.company_name)}</div>
+                                        <div class="meta">${p.source || ''}</div>
+                                    </div>
+                                </div>
+                            `).join('');
+                        } else {
+                            prospectSection.style.display = 'none';
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('加载潜在客户列表失败:', error);
+            }
+        }
+
+        // HTML 转义防止 XSS
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 切换到客户对话
+        function switchToCustomerChat(customerId, customerName) {
+            currentCustomerId = customerId;
+            currentLibraryId = null;
+            document.getElementById('welcome-page').classList.add('hidden');
+            document.getElementById('chat-page').classList.remove('hidden');
+            document.getElementById('chat-title').textContent = customerName;
+            document.getElementById('chat-title-icon').textContent = '👤';
+            document.getElementById('chat-badge').textContent = '客户对话';
+            document.getElementById('btn-clear-chat').classList.add('hidden');
+            document.getElementById('chat-messages').innerHTML = '';
+        }
+
+        // 切换到潜在客户对话
+        function switchToProspectChat(prospectId, prospectName) {
+            currentCustomerId = prospectId;
+            currentLibraryId = null;
+            document.getElementById('welcome-page').classList.add('hidden');
+            document.getElementById('chat-page').classList.remove('hidden');
+            document.getElementById('chat-title').textContent = prospectName;
+            document.getElementById('chat-title-icon').textContent = '📨';
+            document.getElementById('chat-badge').textContent = '潜在客户';
+            document.getElementById('btn-clear-chat').classList.add('hidden');
+            document.getElementById('chat-messages').innerHTML = '';
+        }
+
+        // 显示新建客户弹窗
+        function showAddCustomerModal() {
+            showToast('新建客户功能开发中...');
+        }
+    </script>
+</body>
+</html>

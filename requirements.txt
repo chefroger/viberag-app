@@ -1,0 +1,32 @@
+# Web Framework
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+python-multipart==0.0.9
+
+# Database
+sqlalchemy>=2.0.25
+sqlite-vec
+
+# Document Parsing
+pdfplumber
+python-docx
+openpyxl
+xlrd
+python-pptx
+
+# OCR (Images & Scanned PDFs)
+Pillow
+pytesseract
+
+# Embedding & LLM
+ollama
+openai
+anthropic
+
+# Security
+bcrypt
+
+# Utilities
+pydantic>=2.6.0
+pydantic-settings
+python-dotenv
