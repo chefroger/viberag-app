@@ -481,10 +481,8 @@ def chunk_text(text: str, chunk_size: int = None, overlap: int = None) -> List[s
             # 先保存当前 chunk
             if current_chunk:
                 chunks.append('\n'.join(current_chunk))
-                # 处理重叠
-                overlap_text = '\n'.join(current_chunk)
-                current_chunk = []
-                current_tokens = 0
+            current_chunk = []
+            current_tokens = 0
 
             # 按句子分割
             sentences = re.split(r'[。！？.!?\n]', para)
@@ -498,9 +496,6 @@ def chunk_text(text: str, chunk_size: int = None, overlap: int = None) -> List[s
                 if temp_tokens + sent_tokens > chunk_size:
                     if temp_chunk:
                         chunks.append(''.join(temp_chunk))
-                    # 保持重叠
-                    if overlap_text and len(temp_chunk) >= 2:
-                        overlap_text = ''.join(temp_chunk[-2:])
                     temp_chunk = []
                     temp_tokens = 0
 
