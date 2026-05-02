@@ -550,13 +550,25 @@ async def parse_file(file_record) -> List[dict]:
             content = await parse_scanned_pdf(file_path)
     elif file_ext == '.docx':
         content = await parse_docx(file_path)
+    elif file_ext == '.doc':
+        content = await parse_doc(file_path)
     elif file_ext in ('.xlsx', '.xls'):
         content = await parse_excel(file_path)
+    elif file_ext == '.xlt':
+        content = await parse_xlt(file_path)
     elif file_ext == '.pptx':
         content = await parse_pptx(file_path)
+    elif file_ext == '.ppt':
+        content = await parse_ppt(file_path)
     elif file_ext in ('.png', '.jpg', '.jpeg', '.bmp'):
         # 图片文件使用 OCR
         content = await parse_image(file_path)
+    elif file_ext == '.html':
+        content = await parse_html(file_path)
+    elif file_ext == '.csv':
+        content = await parse_csv(file_path)
+    elif file_ext == '.numbers':
+        content = await parse_numbers(file_path)
     else:
         return []
 
@@ -875,4 +887,256 @@ async def parse_scanned_pdf(file_path: str) -> str:
         return ""
     except Exception as e:
         print(f"扫描 PDF OCR 解析失败: {file_path}, error: {e}")
+        return ""
+
+
+# ============================================================================
+# 老格式文件转换解析（LibreOffice）
+# ============================================================================
+
+
+async def parse_doc(file_path: str) -> str:
+    """
+    解析老格式 DOC 文件（通过 LibreOffice 转换为 DOCX 再提取）
+
+    Args:
+        file_path: DOC 文件路径
+
+    Returns:
+        str: 提取的文字
+    """
+    import subprocess
+    from pathlib import Path
+
+    docx_path = file_path + 'x'  # .doc → .docx
+
+    try:
+        # 检查 LibreOffice 是否可用
+        result = subprocess.run(
+            ['soffice', '--headless', '--convert-to', 'docx',
+             '--outdir', str(Path(file_path).parent), file_path],
+            capture_output=True, text=True, timeout=120
+        )
+
+        if result.returncode != 0:
+            print(f"DOC 转换失败: {file_path}, error: {result.stderr}")
+
+        if Path(docx_path).exists():
+            content = await parse_docx(docx_path)
+            # 删除临时转换文件
+            try:
+                Path(docx_path).unlink()
+            except Exception:
+                pass
+            return content
+
+        print(f"DOC 转换后文件不存在: {docx_path}")
+        return ""
+
+    except FileNotFoundError:
+        print(f"DOC 解析失败: {file_path}, error: LibreOffice (soffice) 未安装")
+        return ""
+    except Exception as e:
+        print(f"DOC 解析失败: {file_path}, error: {e}")
+        return ""
+
+
+async def parse_ppt(file_path: str) -> str:
+    """
+    解析老格式 PPT 文件（通过 LibreOffice 转换为 PPTX 再提取）
+
+    Args:
+        file_path: PPT 文件路径
+
+    Returns:
+        str: 提取的文字
+    """
+    import subprocess
+    from pathlib import Path
+
+    pptx_path = file_path + 'x'  # .ppt → .pptx
+
+    try:
+        result = subprocess.run(
+            ['soffice', '--headless', '--convert-to', 'pptx',
+             '--outdir', str(Path(file_path).parent), file_path],
+            capture_output=True, text=True, timeout=120
+        )
+
+        if result.returncode != 0:
+            print(f"PPT 转换失败: {file_path}, error: {result.stderr}")
+
+        if Path(pptx_path).exists():
+            content = await parse_pptx(pptx_path)
+            try:
+                Path(pptx_path).unlink()
+            except Exception:
+                pass
+            return content
+
+        print(f"PPT 转换后文件不存在: {pptx_path}")
+        return ""
+
+    except FileNotFoundError:
+        print(f"PPT 解析失败: {file_path}, error: LibreOffice (soffice) 未安装")
+        return ""
+    except Exception as e:
+        print(f"PPT 解析失败: {file_path}, error: {e}")
+        return ""
+
+
+async def parse_xlt(file_path: str) -> str:
+    """
+    解析 Excel 模板文件 XLT（通过 LibreOffice 转换为 XLSX 再提取）
+
+    Args:
+        file_path: XLT 文件路径
+
+    Returns:
+        str: 提取的文字
+    """
+    import subprocess
+    from pathlib import Path
+
+    xlsx_path = file_path.replace('.xlt', '.xlsx')
+
+    try:
+        result = subprocess.run(
+            ['soffice', '--headless', '--convert-to', 'xlsx',
+             '--outdir', str(Path(file_path).parent), file_path],
+            capture_output=True, text=True, timeout=120
+        )
+
+        if result.returncode != 0:
+            print(f"XLT 转换失败: {file_path}, error: {result.stderr}")
+
+        if Path(xlsx_path).exists():
+            content = await parse_excel(xlsx_path)
+            try:
+                Path(xlsx_path).unlink()
+            except Exception:
+                pass
+            return content
+
+        print(f"XLT 转换后文件不存在: {xlsx_path}")
+        return ""
+
+    except FileNotFoundError:
+        print(f"XLT 解析失败: {file_path}, error: LibreOffice (soffice) 未安装")
+        return ""
+    except Exception as e:
+        print(f"XLT 解析失败: {file_path}, error: {e}")
+        return ""
+
+
+# ============================================================================
+# HTML 解析（BeautifulSoup）
+# ============================================================================
+
+
+async def parse_html(file_path: str) -> str:
+    """
+    用 BeautifulSoup 提取 HTML 正文文本
+
+    Args:
+        file_path: HTML 文件路径
+
+    Returns:
+        str: 提取的文字
+    """
+    try:
+        from bs4 import BeautifulSoup
+
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            soup = BeautifulSoup(f.read(), 'html.parser')
+
+        # 移除无关标签
+        for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside']):
+            tag.decompose()
+
+        text = soup.get_text(separator='\n', strip=True)
+
+        # 合并空行
+        lines = [l for l in text.split('\n') if l.strip()]
+        return '\n'.join(lines)
+
+    except ImportError:
+        print(f"HTML 解析失败: {file_path}, error: beautifulsoup4 未安装，请运行: pip install beautifulsoup4")
+        return ""
+    except Exception as e:
+        print(f"HTML 解析失败: {file_path}, error: {e}")
+        return ""
+
+
+# ============================================================================
+# CSV 解析
+# ============================================================================
+
+
+async def parse_csv(file_path: str) -> str:
+    """
+    解析 CSV 文件
+
+    Args:
+        file_path: CSV 文件路径
+
+    Returns:
+        str: 提取的文字
+    """
+    import csv
+    import codecs
+
+    encodings = ['utf-8-sig', 'utf-8', 'gbk', 'latin-1']
+
+    for enc in encodings:
+        try:
+            with codecs.open(file_path, 'r', encoding=enc) as f:
+                reader = csv.reader(f)
+                results = []
+                for row in reader:
+                    row_text = ' | '.join(row)
+                    if row_text.strip():
+                        results.append(row_text)
+                return '\n'.join(results)
+        except UnicodeDecodeError:
+            continue
+        except Exception as e:
+            print(f"CSV 解析失败: {file_path}, error: {e}")
+            return ""
+
+    return ""
+
+
+# ============================================================================
+# Apple Numbers 解析
+# ============================================================================
+
+
+async def parse_numbers(file_path: str) -> str:
+    """
+    解析 Apple Numbers 文件（zip 打包的 XML 结构）
+
+    Args:
+        file_path: Numbers 文件路径
+
+    Returns:
+        str: 提取的文字
+    """
+    import zipfile
+
+    texts = []
+
+    try:
+        with zipfile.ZipFile(file_path, 'r') as zf:
+            for name in zf.namelist():
+                if name.endswith('.xml'):
+                    content = zf.read(name).decode('utf-8', errors='ignore')
+                    # 提取 Numbers 中的文字节点
+                    matches = re.findall(r'<a:t>([^<]+)</a:t>', content)
+                    texts.extend([m for m in matches if m.strip()])
+
+        return '\n'.join(texts) if texts else ""
+
+    except Exception as e:
+        print(f"NUMBERS 解析失败: {file_path}, error: {e}")
         return ""
