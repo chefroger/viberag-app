@@ -1027,6 +1027,26 @@
     <!-- Toast 容器 -->
     <div id="toast-container"></div>
 
+    <!-- 扫描进度弹窗 -->
+    <div class="modal-backdrop hidden" id="scan-progress-modal">
+        <div class="modal" style="max-width: 400px;">
+            <h3 class="modal-title">📋 扫描进度</h3>
+            <div style="margin: 1rem 0;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span id="scan-progress-text">0/0 (0%)</span>
+                    <span id="scan-progress-status">准备中...</span>
+                </div>
+                <div style="background: var(--bg-tertiary); border-radius: 9999px; height: 8px; overflow: hidden;">
+                    <div id="scan-progress-bar" style="background: var(--primary); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+                </div>
+                <div id="scan-progress-detail" style="margin-top: 0.75rem; font-size: var(--font-size-xs); color: var(--text-muted);">正在处理: ...</div>
+            </div>
+            <div style="text-align: center;">
+                <button class="btn btn-secondary btn-sm" onclick="hideScanProgressModal()">后台进行</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // 状态
         let selectedFolderPath = '';
@@ -1432,8 +1452,15 @@
                     showToast(data.message || '文档库创建成功，正在后台扫描...');
                     hideAddLibraryModal();
                     // 延迟一下确保后端已提交
-                    setTimeout(() => {
-                        loadLibraryList();
+                    setTimeout(async () => {
+                        await loadLibraryList();
+                        // 找到新建的库并开始扫描进度监控
+                        const libs = await fetch('/api/library/list').then(r => r.json());
+                        const newLib = libs.libraries?.find(l => l.name === name);
+                        if (newLib) {
+                            currentLibraryId = newLib.id;
+                            showScanProgressModal(newLib.id);
+                        }
                     }, 500);
                 } else {
                     showToast(data.detail || '创建失败');
@@ -1611,6 +1638,7 @@
                 });
                 const data = await response.json();
                 showToast(data.message || '扫描已启动');
+                showScanProgressModal(currentLibraryId);
             } catch (error) {
                 showToast(`扫描失败：${error.message}`);
             }
@@ -1633,6 +1661,7 @@
                 });
                 const data = await response.json();
                 showToast(data.message || '强制重扫已启动');
+                showScanProgressModal(currentLibraryId);
             } catch (error) {
                 showToast(`重扫失败：${error.message}`);
             }
@@ -1649,6 +1678,71 @@
             setTimeout(() => {
                 toast.remove();
             }, 3000);
+        }
+
+        // 扫描进度弹窗
+        let scanEventSource = null;
+
+        function showScanProgressModal(libraryId) {
+            const modal = document.getElementById('scan-progress-modal');
+            if (modal) modal.classList.remove('hidden');
+
+            if (scanEventSource) {
+                scanEventSource.close();
+            }
+
+            scanEventSource = new EventSource(`/api/library/${libraryId}/progress/stream`);
+
+            scanEventSource.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                updateScanProgressUI(data);
+
+                if (data.done) {
+                    scanEventSource.close();
+                    scanEventSource = null;
+                    setTimeout(() => {
+                        hideScanProgressModal();
+                        loadLibraryList();  // 刷新列表
+                        showToast('扫描完成！');
+                    }, 1500);
+                }
+            };
+
+            scanEventSource.onerror = () => {
+                scanEventSource.close();
+                scanEventSource = null;
+                hideScanProgressModal();
+            };
+        }
+
+        function updateScanProgressUI(data) {
+            const progressBar = document.getElementById('scan-progress-bar');
+            const progressText = document.getElementById('scan-progress-text');
+            const progressDetail = document.getElementById('scan-progress-detail');
+            const progressStatus = document.getElementById('scan-progress-status');
+
+            if (progressBar) {
+                progressBar.style.width = `${data.progress_percent || 0}%`;
+            }
+            if (progressText) {
+                progressText.textContent = `${data.processed || 0}/${data.total || 0} (${(data.progress_percent || 0).toFixed(1)}%)`;
+            }
+            if (progressStatus) {
+                progressStatus.textContent = data.status === 'completed' ? '完成' : data.status === 'failed' ? '失败' : '扫描中';
+            }
+            if (progressDetail) {
+                const failedText = data.failed_files > 0 ? `, 失败 ${data.failed_files} 个` : '';
+                progressDetail.textContent = `正在处理: ${data.current_file || '...'}${failedText}`;
+            }
+        }
+
+        function hideScanProgressModal() {
+            const modal = document.getElementById('scan-progress-modal');
+            if (modal) modal.classList.add('hidden');
+            if (scanEventSource) {
+                scanEventSource.close();
+                scanEventSource = null;
+            }
         }
 
         // 拖拽文件夹相关
