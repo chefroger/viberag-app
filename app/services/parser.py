@@ -13,6 +13,23 @@ from typing import List, Optional, Tuple, Dict
 from app.config import settings
 
 
+# 支持的文件类型列表（科辰文档规范）
+SUPPORTED_EXTENSIONS = {
+    '.txt', '.md',  # 文本
+    '.pdf',  # PDF
+    '.docx', '.doc',  # Word
+    '.xlsx', '.xls', '.xlt',  # Excel
+    '.pptx', '.ppt',  # PowerPoint
+    '.png', '.jpg', '.jpeg', '.bmp',  # 图片（OCR）
+    '.html', '.csv', '.numbers',  # 其他
+}
+
+
+def is_supported_file(file_ext: str) -> bool:
+    """检查文件类型是否支持"""
+    return file_ext.lower() in SUPPORTED_EXTENSIONS
+
+
 # 文档类型识别规则
 DOC_TYPE_RULES = [
     # 报价单（优先级最高）
@@ -570,7 +587,8 @@ async def parse_file(file_record) -> List[dict]:
     elif file_ext == '.numbers':
         content = await parse_numbers(file_path)
     else:
-        return []
+        # 不支持的文件类型，返回特殊标记让 scanner 记录为 unsupported
+        return [{'_unsupported': True, '_file_ext': file_ext}]
 
     if not content:
         return []

@@ -1494,7 +1494,7 @@
                         let statusIcon, statusTitle;
                         if (hasChunks && failed === 0 && processed >= total) {
                             statusIcon = '✅';
-                            statusTitle = `已扫描完成 (${processed}/${total})`;
+                            statusTitle = `已扫描完成`;
                         } else if (hasChunks) {
                             statusIcon = '⚠️';
                             statusTitle = `部分成功 (成功${processed}, 失败${failed})`;
@@ -1503,7 +1503,7 @@
                             statusTitle = `扫描中 (${processed}/${total})`;
                         } else {
                             statusIcon = '📋';
-                            statusTitle = `待扫描 (${total} 文件)`;
+                            statusTitle = `待扫描`;
                         }
                         return `
                         <div class="library-item" data-id="${lib.id}" data-name="${lib.name}" onclick="selectLibraryFromElement(this)">
@@ -1725,7 +1725,8 @@
                 progressBar.style.width = `${data.progress_percent || 0}%`;
             }
             if (progressText) {
-                progressText.textContent = `${data.processed || 0}/${data.total || 0} (${(data.progress_percent || 0).toFixed(1)}%)`;
+                const unsupportedText = data.unsupported_files > 0 ? `, 跳过 ${data.unsupported_files} 个不支持类型` : '';
+                progressText.textContent = `${data.processed || 0}/${data.total || 0} (${(data.progress_percent || 0).toFixed(1)}%)${unsupportedText}`;
             }
             if (progressStatus) {
                 progressStatus.textContent = data.status === 'completed' ? '完成' : data.status === 'failed' ? '失败' : '扫描中';

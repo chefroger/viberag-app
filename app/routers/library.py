@@ -207,6 +207,12 @@ async def stream_scan_progress(library_id: int, db: Session = Depends(get_db)):
             else:
                 eta_seconds = None
 
+            unsupported_files = db.query(File).filter(
+                File.library_id == library_id,
+                File.status == 'unsupported',
+                File.deleted == False
+            ).count()
+
             data = {
                 "status": progress.status,
                 "total": progress.total,
@@ -216,6 +222,7 @@ async def stream_scan_progress(library_id: int, db: Session = Depends(get_db)):
                 "total_files": total_files,
                 "indexed_files": indexed_files,
                 "failed_files": failed_files,
+                "unsupported_files": unsupported_files,
                 "pending_files": pending_files,
                 "eta_seconds": eta_seconds,
                 "errors": progress.error_files[:10],

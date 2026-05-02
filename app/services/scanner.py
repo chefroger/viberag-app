@@ -231,12 +231,16 @@ class ScanProgress:
         self.current_file = None
         self.status = 'idle'  # idle, scanning, indexing, completed, failed
         self.error_files = []
+        self.unsupported_count = 0
 
     def set_total(self, total: int):
         self.total = total
 
     def increment(self):
         self.processed += 1
+
+    def increment_unsupported(self):
+        self.unsupported_count += 1
 
     def set_current_file(self, filename: str):
         self.current_file = filename
@@ -255,7 +259,8 @@ class ScanProgress:
             'status': self.status,
             'progress_percent': (self.processed / self.total * 100) if self.total > 0 else 0,
             'error_count': len(self.error_files),
-            'errors': self.error_files[:10],  # 只返回前10个错误
+            'unsupported_count': self.unsupported_count,
+            'errors': self.error_files[:10],
         }
 
 
@@ -447,6 +452,18 @@ async def run_scan_task(library_id: int, root_path: str, db: Session = None):
 
                 # 解析文件
                 chunks = await parse_file(db_file)
+
+                # 检查是否是不支持的文件类型
+                if chunks and len(chunks) == 1 and chunks[0].get('_unsupported'):
+                    db_file.status = 'unsupported'
+                    db_file.is_processed = True
+                    db_file.error_message = f"不支持的文件类型: {chunks[0].get('_file_ext', db_file.file_ext)}"
+                    db.commit()
+                    if queue_item:
+                        mark_queue_completed(db, queue_item.id)
+                    progress.increment()
+                    progress.increment_unsupported()
+                    continue
 
                 if not chunks:
                     db_file.status = 'indexed'
