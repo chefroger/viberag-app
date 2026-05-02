@@ -3,11 +3,16 @@ VibeRAG 向量存储服务（纯 Python 实现）
 """
 import json
 import math
+import threading
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.config import settings
+
+
+# 线程锁，保护向量字典
+_vector_lock = threading.Lock()
 
 
 def cosine_similarity(a: List[float], b: List[float]) -> float:
@@ -30,13 +35,18 @@ class VectorStore:
 
     def add(self, chunk_id: int, embedding: List[float]):
         """添加向量"""
-        self._vectors[chunk_id] = embedding
+        with _vector_lock:
+            self._vectors[chunk_id] = embedding
 
     def search(self, query_embedding: List[float], top_k: int = 5, threshold: float = 0.35) -> List[dict]:
         """搜索相似向量"""
         results = []
 
-        for chunk_id, embedding in self._vectors.items():
+        # 复制向量字典以避免迭代时修改问题
+        with _vector_lock:
+            vectors_snapshot = list(self._vectors.items())
+
+        for chunk_id, embedding in vectors_snapshot:
             similarity = cosine_similarity(query_embedding, embedding)
             if similarity >= threshold:
                 results.append({
@@ -51,11 +61,13 @@ class VectorStore:
 
     def delete(self, chunk_id: int):
         """删除向量"""
-        self._vectors.pop(chunk_id, None)
+        with _vector_lock:
+            self._vectors.pop(chunk_id, None)
 
     def clear(self):
         """清空所有向量"""
-        self._vectors.clear()
+        with _vector_lock:
+            self._vectors.clear()
 
 
 # 全局向量存储实例
@@ -225,20 +237,22 @@ def rebuild_vector_index():
     print("正在从数据库重建向量索引...")
 
     # 清空内存索引
-    _vector_store.clear()
+    with _vector_lock:
+        _vector_store.clear()
 
     with get_db_context() as db:
-        vectors = db.query(ChunkVector).all()
+        vectors = db.query(ChunkVector).filter(ChunkVector.embedding_data != None).all()
 
         for vec in vectors:
-            if vec.embedding_data:
-                try:
-                    embedding = _deserialize_embedding(vec.embedding_data)
+            try:
+                embedding = _deserialize_embedding(vec.embedding_data)
+                with _vector_lock:
                     _vector_store.add(vec.chunk_id, embedding)
-                except Exception as e:
-                    print(f"加载向量失败 (chunk_id={vec.chunk_id}): {e}")
+            except Exception as e:
+                print(f"加载向量失败 (chunk_id={vec.chunk_id}): {e}")
 
-    count = len(_vector_store._vectors)
+    with _vector_lock:
+        count = len(_vector_store._vectors)
     print(f"向量索引重建完成，共加载 {count} 个向量")
 
 
