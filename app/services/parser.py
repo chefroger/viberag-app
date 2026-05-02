@@ -855,7 +855,7 @@ async def parse_image(file_path: str) -> str:
 
 async def parse_scanned_pdf(file_path: str) -> str:
     """
-    使用 OCR 解析扫描型 PDF 文件
+    使用 OCR 解析扫描型 PDF 文件（PyMuPDF + Tesseract）
 
     Args:
         file_path: PDF 文件路径
@@ -866,23 +866,22 @@ async def parse_scanned_pdf(file_path: str) -> str:
     try:
         import pytesseract
         from PIL import Image
-        import pdfplumber
+        import fitz  # PyMuPDF
 
         text_parts = []
 
-        with pdfplumber.open(file_path) as pdf:
-            for i, page in enumerate(pdf.pages):
+        with fitz.open(file_path) as pdf:
+            for i, page in enumerate(pdf):
                 # 尝试提取文字
-                text = page.extract_text()
+                text = page.get_text()
 
                 if text and text.strip():
-                    # 如果有文字，可能是混合型 PDF
                     text_parts.append(f"[Page {i+1}]\n{text}")
                 else:
-                    # 如果没有文字，尝试 OCR
+                    # 如果没有文字，将 PDF 页面转换为图片进行 OCR
                     try:
-                        # 将 PDF 页面转换为图片
-                        pix = page.get_pixmap(matrix=2.0)  # 2x 分辨率
+                        # 使用 PyMuPDF 的 get_pixmap 方法
+                        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x 分辨率
                         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
                         # OCR
@@ -901,7 +900,7 @@ async def parse_scanned_pdf(file_path: str) -> str:
         return '\n\n'.join(text_parts) if text_parts else ""
 
     except ImportError:
-        print(f"扫描 PDF OCR 解析失败: {file_path}, error: Pillow 或 pytesseract 未安装")
+        print(f"扫描 PDF OCR 解析失败: {file_path}, error: PyMuPDF 或 pytesseract 未安装")
         return ""
     except Exception as e:
         print(f"扫描 PDF OCR 解析失败: {file_path}, error: {e}")
